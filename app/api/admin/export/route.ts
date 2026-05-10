@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAdminFromRequest, logAudit } from "@/lib/auth";
 import { getCurrentVotePeriod } from "@/lib/scoring";
-import { CATEGORY_LABELS, DEPARTMENT_LABELS } from "@/types";
 
 function escapeCsv(val: unknown): string {
   const str = String(val ?? "");
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) return `"${str.replace(/"/g, '""')}"`;
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
   return str;
 }
 
@@ -23,21 +24,29 @@ export async function GET(req: NextRequest) {
 
   const votes = await prisma.vote.findMany({
     where: { voteMonth: month, voteYear: year },
-    include: { candidate: true, ratings: true },
-    orderBy: [{ category: "asc" }, { createdAt: "asc" }],
+    include: { candidate: true, ratings: true, category: true },
+    orderBy: [{ category: { name: "asc" } }, { createdAt: "asc" }],
   });
 
-  const headers = ["Vote ID","Month","Year","Category","Voter Department","Candidate Name","Candidate Department","Average Rating","Comment","Submitted At"];
+  const headers = [
+    "Vote ID", "Month", "Year", "Category",
+    "Candidate Name", "Candidate Department",
+    "Average Rating", "Comment", "Submitted At",
+  ];
+
   const rows = [headers.map(escapeCsv).join(",")];
 
   for (const vote of votes) {
     rows.push([
-      vote.id, MONTH_NAMES[vote.voteMonth], vote.voteYear,
-      CATEGORY_LABELS[vote.category as keyof typeof CATEGORY_LABELS] ?? vote.category,
-      DEPARTMENT_LABELS[vote.voterDepartment as keyof typeof DEPARTMENT_LABELS] ?? vote.voterDepartment,
+      vote.id,
+      MONTH_NAMES[vote.voteMonth],
+      vote.voteYear,
+      vote.category.name,
       vote.candidate.name,
-      DEPARTMENT_LABELS[vote.candidate.department as keyof typeof DEPARTMENT_LABELS] ?? vote.candidate.department,
-      vote.averageRating.toFixed(2), vote.comment ?? "", vote.createdAt.toISOString(),
+      vote.candidate.department,
+      vote.averageRating.toFixed(2),
+      vote.comment ?? "",
+      vote.createdAt.toISOString(),
     ].map(escapeCsv).join(","));
   }
 
