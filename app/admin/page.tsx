@@ -17,9 +17,10 @@ import VotingSchedulePanel from "@/components/admin/VotingSchedulePanel";
 import PublishWinnersPanel from "@/components/admin/PublishWinnersPanel";
 import BackupPanel from "@/components/admin/BackupPanel";
 import CommentModerationPanel from "@/components/admin/CommentModerationPanel";
+import ResetDataPanel from "@/components/admin/ResetDataPanel";
 
 interface AdminUser { id: string; email: string; name: string; role: "SUPER_ADMIN" | "ADMIN"; }
-type Tab = "dashboard" | "employees" | "categories" | "schedule" | "publish" | "comments" | "backup" | "accounts" | "invites" | "audit";
+type Tab = "dashboard" | "employees" | "categories" | "schedule" | "publish" | "comments" | "backup" | "accounts" | "invites" | "audit" | "reset";
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 export default function AdminPage() {
@@ -70,6 +71,7 @@ export default function AdminPage() {
     { id: "publish", label: "Publish Winners", icon: "🏆", superOnly: true },
     { id: "comments", label: "Comments", icon: "💬", superOnly: true },
     { id: "backup", label: "Backup", icon: "🗄️", superOnly: true },
+    { id: "reset", label: "Reset Test Data", icon: "🗑️", superOnly: true },
     { id: "accounts", label: "Admin Accounts", icon: "👥", superOnly: true },
     { id: "invites", label: "Invite Codes", icon: "🔗", superOnly: true },
     { id: "audit", label: "Audit Logs", icon: "📋" },
@@ -182,6 +184,11 @@ export default function AdminPage() {
           {activeTab === "backup" && isSuperAdmin && (
             <motion.div key="backup" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <BackupPanel />
+            </motion.div>
+          )}
+          {activeTab === "reset" && isSuperAdmin && (
+            <motion.div key="reset" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <ResetDataPanel />
             </motion.div>
           )}
           {activeTab === "accounts" && isSuperAdmin && (
