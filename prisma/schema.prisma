@@ -1,0 +1,274 @@
+// prisma/schema.prisma — Alexon Group v3
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Department {
+  EXECUTIVE_MANAGEMENT
+  FINANCE_ADMIN
+  PROCUREMENT_STORES
+  ICT_COMMS_LOGISTICS
+  ENGINEERING_TECHNICAL
+  SALES
+  OPERATIONS_MANAGEMENT
+  QUARRY
+  HEAVY_MACHINERY
+  TRANSPORT_FLEET
+  PRODUCTION
+  CONSTRUCTION
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+model Employee {
+  id          String     @id @default(cuid())
+  name        String
+  staffNumber String     @unique
+  department  Department
+  role        String?
+  isActive    Boolean    @default(true)
+  isExcluded  Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  categoryMembers CategoryMember[]
+  votesAsVoter    Vote[]           @relation("VoterEmployee")
+  votesAsCandidate Vote[]          @relation("CandidateEmployee")
+
+  @@index([department])
+  @@map("employees")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members CategoryMember[]
+  votes   Vote[]
+
+  @@map("categories")
+}
+
+model CategoryMember {
+  id         String   @id @default(cuid())
+  categoryId String
+  employeeId String
+  isLeader   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, employeeId])
+  @@index([categoryId])
+  @@index([employeeId])
+  @@map("category_members")
+}
+
+model Vote {
+  id              String   @id @default(cuid())
+  voterEmployeeId String
+  voterEmployee   Employee @relation("VoterEmployee", fields: [voterEmployeeId], references: [id])
+  candidateId     String
+  candidate       Employee @relation("CandidateEmployee", fields: [candidateId], references: [id])
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id])
+  voteMonth       Int
+  voteYear        Int
+  averageRating   Float
+  comment         String?
+  createdAt       DateTime @default(now())
+  ratings         Rating[]
+
+  @@unique([voterEmployeeId, categoryId, voteMonth, voteYear])
+  @@index([categoryId, voteMonth, voteYear])
+  @@map("votes")
+}
+
+model Rating {
+  id        String @id @default(cuid())
+  voteId    String
+  vote      Vote   @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  criterion String
+  score     Int
+
+  @@index([voteId])
+  @@map("ratings")
+}
+
+model MonthlyResult {
+  id            String   @id @default(cuid())
+  employeeId    String
+  employeeName  String
+  categoryId    String
+  categoryName  String
+  month         Int
+  year          Int
+  totalVotes    Int
+  averageRating Float
+  finalScore    Float
+  rank          Int?
+  computedAt    DateTime @default(now())
+
+  @@unique([employeeId, categoryId, month, year])
+  @@map("monthly_results")
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         AdminRole @default(ADMIN)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdById   String?
+  createdBy     AdminUser?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
+  createdAdmins AdminUser[] @relation("AdminCreatedBy")
+  sessions      AdminSession[]
+  auditLogs     AuditLog[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id        String    @id @default(cuid())
+  adminId   String
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  token     String    @unique @default(cuid())
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  ipAddress String?
+  userAgent String?
+
+  @@index([token])
+  @@index([adminId])
+  @@map("admin_sessions")
+}
+
+model InviteCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  email       String?
+  role        AdminRole @default(ADMIN)
+  isUsed      Boolean   @default(false)
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  @@index([code])
+  @@map("invite_codes")
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  adminId   String
+  admin     AdminUser @relation(fields: [adminId], references: [id])
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── VOTING SCHEDULE ──────────────────────────────────
+
+model VotingSchedule {
+  id            String    @id @default(cuid())
+  
+  // Recurring monthly rule
+  recurringStartDay  Int       // Day of month voting opens (e.g. 25)
+  recurringEndDay    Int       // Day of month voting closes (e.g. 30)
+  recurringStartHour Int       @default(8)   // Hour voting opens (24hr)
+  recurringEndHour   Int       @default(17)  // Hour voting closes (24hr)
+  
+  // Manual override
+  isManualOverride   Boolean   @default(false)
+  manualIsOpen       Boolean   @default(false) // true = forced open, false = forced closed
+  overrideReason     String?
+  overrideSetAt      DateTime?
+  overrideSetById    String?
+  
+  // Status
+  isActive      Boolean   @default(true)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("voting_schedule")
+}
+
+// ─── PUBLISHED WINNERS ────────────────────────────────
+
+model PublishedWinner {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employeeName String
+  categoryId   String
+  categoryName String
+  department   String
+  role         String?
+  month        Int
+  year         Int
+  finalScore   Float
+  averageRating Float
+  totalVotes   Int
+  message      String?  // Custom announcement message
+  photoUrl     String?  // Photo path (future feature)
+  publishedAt  DateTime @default(now())
+  publishedById String  // Admin who published
+
+  @@unique([categoryId, month, year])
+  @@index([month, year])
+  @@map("published_winners")
+}
+
+// ─── BACKUPS ──────────────────────────────────────────
+
+model Backup {
+  id          String   @id @default(cuid())
+  filename    String
+  filePath    String
+  sizeBytes   Int
+  trigger     String   // "MANUAL", "AUTO_BEFORE_PUBLISH", "AUTO_BEFORE_DELETE"
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@map("backups")
+}
+
+// ─── COMMENT MODERATION ───────────────────────────────
+
+model CommentModeration {
+  id        String   @id @default(cuid())
+  voteId    String   @unique
+  isHidden  Boolean  @default(false)
+  isFlagged Boolean  @default(false)
+  reason    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@map("comment_moderation")
+}
