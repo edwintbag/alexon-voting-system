@@ -1,11 +1,15 @@
-// components/voting/StepSubmit.tsx — v3 uses voterEmployeeId + categoryId
+// components/voting/StepSubmit.tsx — v8 shows total score
 "use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { VoteFormState, PRODUCTION_CRITERIA, LEADER_CRITERIA } from "@/types";
-import { computeAvgRating } from "@/lib/scoring";
+import { computeTotalScore } from "@/lib/scoring";
 import CardWrapper from "@/components/ui/CardWrapper";
+
+const SCORE_LABELS: Record<number, string> = {
+  1: "Poor", 2: "Fair", 3: "Good", 4: "Very Good", 5: "Excellent",
+};
 
 interface Props { formState: VoteFormState; onBack: () => void; onSuccess: (name: string) => void; }
 
@@ -15,7 +19,8 @@ export default function StepSubmit({ formState, onBack, onSuccess }: Props) {
   const { voterInfo, selectedCategory, selectedCandidate, ratings, comment } = formState;
   const isLeader = selectedCategory?.name?.toLowerCase().includes("leader") ?? false;
   const criteria = isLeader ? LEADER_CRITERIA : PRODUCTION_CRITERIA;
-  const avgRating = computeAvgRating(ratings);
+  const totalScore = computeTotalScore(ratings);
+  const maxScore = criteria.length * 5;
 
   const handleSubmit = async () => {
     if (!selectedCandidate || !selectedCategory || !voterInfo?.employeeId) return;
@@ -24,7 +29,13 @@ export default function StepSubmit({ formState, onBack, onSuccess }: Props) {
       const res = await fetch("/api/votes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voterEmployeeId: voterInfo.employeeId, candidateId: selectedCandidate.id, categoryId: selectedCategory.id, ratings, comment: comment || undefined }),
+        body: JSON.stringify({
+          voterEmployeeId: voterInfo.employeeId,
+          candidateId: selectedCandidate.id,
+          categoryId: selectedCategory.id,
+          ratings,
+          comment: comment || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to submit vote");
@@ -45,36 +56,59 @@ export default function StepSubmit({ formState, onBack, onSuccess }: Props) {
           <Row label="Name" value={voterInfo?.employeeName ?? ""} />
           <Row label="Staff No." value={voterInfo?.staffNumber ?? ""} />
         </Section>
+
         <Section title="Your Vote">
           <Row label="Category" value={selectedCategory?.name ?? ""} highlight />
           <Row label="Voting For" value={selectedCandidate?.name ?? ""} highlight />
         </Section>
+
         <Section title="Ratings Given">
           {criteria.map(c => (
             <div key={c.key} className="flex items-center justify-between py-1">
               <span className="text-sm text-dark-300">{c.label}</span>
-              <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map(s => <span key={s} className={s <= (ratings[c.key] ?? 0) ? "text-gold-400 text-sm" : "text-dark-600 text-sm"}>★</span>)}
-                <span className="text-gold-400 text-xs ml-1 font-mono">{ratings[c.key]}/5</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                  ratings[c.key] === 5 ? "bg-green-500/20 text-green-400" :
+                  ratings[c.key] === 4 ? "bg-blue-500/20 text-blue-400" :
+                  ratings[c.key] === 3 ? "bg-yellow-500/20 text-yellow-400" :
+                  ratings[c.key] === 2 ? "bg-orange-500/20 text-orange-400" :
+                  "bg-red-500/20 text-red-400"
+                }`}>
+                  {SCORE_LABELS[ratings[c.key]] ?? "—"}
+                </span>
+                <span className="text-gold-400 text-xs font-mono font-bold">{ratings[c.key]}/5</span>
               </div>
             </div>
           ))}
-          <div className="mt-2 pt-2 border-t border-surface-border flex items-center justify-between">
-            <span className="text-sm font-semibold text-dark-200">Average Rating</span>
-            <span className="text-gold-400 font-bold font-mono">{avgRating.toFixed(1)} / 5.0</span>
+          <div className="mt-3 pt-3 border-t border-surface-border flex items-center justify-between">
+            <span className="text-sm font-semibold text-dark-200">Total Score</span>
+            <span className="text-gold-400 font-bold font-mono text-lg">
+              {totalScore} / {maxScore}
+            </span>
           </div>
         </Section>
-        {comment && <Section title="Your Comment"><p className="text-sm text-dark-300 italic">"{comment}"</p></Section>}
+
+        {comment && (
+          <Section title="Your Comment">
+            <p className="text-sm text-dark-300 italic">"{comment}"</p>
+          </Section>
+        )}
       </div>
 
       {error && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">❌ {error}</motion.div>
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+          ❌ {error}
+        </motion.div>
       )}
 
       <div className="mt-8 flex justify-between">
         <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onBack} disabled={isSubmitting} className="btn-outline">← Back</motion.button>
-        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={isSubmitting} className="btn-gold min-w-[140px] flex items-center justify-center gap-2">
-          {isSubmitting ? (<><svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Submitting...</>) : "Submit Vote ✓"}
+        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={isSubmitting}
+          className="btn-gold min-w-[140px] flex items-center justify-center gap-2">
+          {isSubmitting ? (
+            <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Submitting...</>
+          ) : "Submit Vote ✓"}
         </motion.button>
       </div>
     </CardWrapper>

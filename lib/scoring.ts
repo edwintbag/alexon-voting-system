@@ -1,22 +1,52 @@
-// lib/scoring.ts — Alexon v3 with DB-driven voting schedule
+// lib/scoring.ts — Alexon v8 — Total Score based formula
 
 import { prisma } from "@/lib/prisma";
 
-// ── Scoring formula ───────────────────────────────────
+// ── Max possible total score ──────────────────────────
+// 5 criteria × 5 max score = 25 max total
+export const MAX_TOTAL_SCORE = 25;
 
-export function computeFinalScore(avgRating: number, voteCount: number, maxVotesInCategory: number): number {
-  const normalizedVotes = maxVotesInCategory > 0 ? (voteCount / maxVotesInCategory) * 5 : 0;
-  return Math.round((avgRating * 0.7 + normalizedVotes * 0.3) * 100) / 100;
+// ── Compute total score from ratings map ─────────────
+export function computeTotalScore(ratings: Record<string, number>): number {
+  const values = Object.values(ratings).filter(
+    (v) => typeof v === "number" && v >= 1 && v <= 5
+  );
+  return values.reduce((a, b) => a + b, 0);
 }
 
+// ── Keep avg for backwards compat ────────────────────
 export function computeAvgRating(ratings: Record<string, number>): number {
-  const values = Object.values(ratings).filter(v => typeof v === "number" && v >= 1 && v <= 5);
+  const values = Object.values(ratings).filter(
+    (v) => typeof v === "number" && v >= 1 && v <= 5
+  );
   if (values.length === 0) return 0;
   return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100;
 }
 
-// ── Voting window — checks DB schedule ───────────────
+/**
+ * Final Score Formula (v8):
+ * finalScore = (totalScore × 0.7) + (normalizedVotes × 0.3)
+ *
+ * totalScore: sum of all criteria ratings (max 25)
+ * normalizedVotes: vote count scaled to 0–25 relative to max in category
+ * Both on same 0–25 scale so weighting is fair
+ */
+export function computeFinalScore(
+  totalScore: number,
+  voteCount: number,
+  maxVotesInCategory: number
+): number {
+  // Normalize vote count to 0–25 scale (same as total score)
+  const normalizedVotes =
+    maxVotesInCategory > 0
+      ? (voteCount / maxVotesInCategory) * MAX_TOTAL_SCORE
+      : 0;
 
+  const score = totalScore * 0.7 + normalizedVotes * 0.3;
+  return Math.round(score * 100) / 100;
+}
+
+// ── Voting window — checks DB schedule ───────────────
 export async function getVotingWindowStatus(): Promise<{
   isOpen: boolean;
   message: string;
@@ -31,7 +61,6 @@ export async function getVotingWindowStatus(): Promise<{
       return { isOpen: false, message: "No voting schedule configured.", isManualOverride: false, schedule: null };
     }
 
-    // Manual override takes priority
     if (schedule.isManualOverride) {
       return {
         isOpen: schedule.manualIsOpen,
@@ -44,32 +73,22 @@ export async function getVotingWindowStatus(): Promise<{
       };
     }
 
-    // Check recurring schedule
     const now = new Date();
     const day = now.getDate();
     const hour = now.getHours();
     const { recurringStartDay: startDay, recurringEndDay: endDay, recurringStartHour: startHour, recurringEndHour: endHour } = schedule;
 
     let isOpen = false;
-    if (day > startDay && day < endDay) {
-      isOpen = true; // Full days in between
-    } else if (day === startDay) {
-      isOpen = hour >= startHour;
-    } else if (day === endDay) {
-      isOpen = hour < endHour;
-    }
+    if (day > startDay && day < endDay) isOpen = true;
+    else if (day === startDay) isOpen = hour >= startHour;
+    else if (day === endDay) isOpen = hour < endHour;
 
     const schedInfo = { startDay, endDay, startHour, endHour };
 
-    if (isOpen) {
-      return { isOpen: true, message: `Voting is open until the ${endDay}th at ${formatHour(endHour)}.`, isManualOverride: false, schedule: schedInfo };
-    } else if (day < startDay) {
-      return { isOpen: false, message: `Voting opens on the ${startDay}th at ${formatHour(startHour)}.`, isManualOverride: false, schedule: schedInfo };
-    } else {
-      return { isOpen: false, message: `Voting closed on the ${endDay}th. Results will be published soon.`, isManualOverride: false, schedule: schedInfo };
-    }
+    if (isOpen) return { isOpen: true, message: `Voting is open until the ${endDay}th at ${formatHour(endHour)}.`, isManualOverride: false, schedule: schedInfo };
+    else if (day < startDay) return { isOpen: false, message: `Voting opens on the ${startDay}th at ${formatHour(startHour)}.`, isManualOverride: false, schedule: schedInfo };
+    else return { isOpen: false, message: `Voting closed on the ${endDay}th. Results will be published soon.`, isManualOverride: false, schedule: schedInfo };
   } catch {
-    // Fallback to env-based check if DB unavailable
     const now = new Date();
     const day = now.getDate();
     const start = parseInt(process.env.VOTE_WINDOW_START ?? "25", 10);
@@ -84,7 +103,6 @@ export async function isVotingWindowOpenAsync(): Promise<boolean> {
   return status.isOpen;
 }
 
-// Sync version for backwards compat (uses env vars)
 export function isVotingWindowOpen(): boolean {
   const now = new Date();
   const day = now.getDate();
