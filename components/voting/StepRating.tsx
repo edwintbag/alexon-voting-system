@@ -1,4 +1,4 @@
-// components/voting/StepRating.tsx
+// components/voting/StepRating.tsx — Option A: Corporate number buttons with labels
 "use client";
 
 import { motion } from "framer-motion";
@@ -14,7 +14,7 @@ import { computeAvgRating } from "@/lib/scoring";
 import CardWrapper from "@/components/ui/CardWrapper";
 
 interface Props {
-  category: VoteCategory;
+  category: VoteCategory | string;
   candidate: EmployeeRecord;
   ratings: RatingMap;
   comment: string;
@@ -24,48 +24,95 @@ interface Props {
   onBack: () => void;
 }
 
-const STAR_LABELS = ["Poor", "Fair", "Good", "Very Good", "Excellent"];
+// Professional HR labels
+const SCORE_LABELS: Record<number, { label: string; color: string; bg: string; border: string }> = {
+  1: { label: "Poor",      color: "text-red-400",    bg: "bg-red-500/20",    border: "border-red-500" },
+  2: { label: "Fair",      color: "text-orange-400", bg: "bg-orange-500/20", border: "border-orange-500" },
+  3: { label: "Good",      color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500" },
+  4: { label: "Very Good", color: "text-blue-400",   bg: "bg-blue-500/20",   border: "border-blue-500" },
+  5: { label: "Excellent", color: "text-green-400",  bg: "bg-green-500/20",  border: "border-green-500" },
+};
 
-function StarRating({
-  criterion,
-  value,
-  onChange,
-}: {
+interface CriterionCardProps {
   criterion: CriterionDef;
   value: number;
+  index: number;
   onChange: (score: number) => void;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      <div className="sm:w-64 flex-shrink-0">
-        <p className="text-sm font-medium text-dark-100">{criterion.label}</p>
-        <p className="text-xs text-dark-500 mt-0.5">{criterion.description}</p>
-      </div>
+}
 
-      <div className="flex items-center gap-2">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <motion.button
-            key={star}
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => onChange(star)}
-            title={STAR_LABELS[star - 1]}
-            className={`rating-btn ${
-              star <= value
-                ? "bg-gold-500/20 border-gold-500 text-gold-400"
-                : "bg-surface-card border-surface-border text-dark-500 hover:border-gold-500/40"
-            }`}
+function CriterionCard({ criterion, value, index, onChange }: CriterionCardProps) {
+  const selected = SCORE_LABELS[value];
+  const isRated = value > 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.08 }}
+      className={`rounded-xl border-2 p-5 transition-all duration-200 ${
+        isRated
+          ? `${selected.border} ${selected.bg}`
+          : "border-surface-border bg-surface-card"
+      }`}
+    >
+      {/* Criterion header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border ${isRated ? `${selected.border} ${selected.color}` : "border-dark-500 text-dark-500"}`}>
+              {index + 1}
+            </span>
+            <h3 className={`font-semibold text-sm ${isRated ? selected.color : "text-dark-100"}`}>
+              {criterion.label}
+            </h3>
+          </div>
+          <p className="text-xs text-dark-400 ml-7">{criterion.description}</p>
+        </div>
+
+        {/* Score badge */}
+        {isRated && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className={`ml-3 flex-shrink-0 px-2.5 py-1 rounded-lg border ${selected.border} ${selected.bg}`}
           >
-            {star <= value ? "★" : "☆"}
-          </motion.button>
-        ))}
-        {value > 0 && (
-          <span className="text-xs text-gold-400 ml-1 font-medium">
-            {STAR_LABELS[value - 1]}
-          </span>
+            <p className={`text-xs font-bold ${selected.color}`}>{value}/5</p>
+            <p className={`text-xs ${selected.color} whitespace-nowrap`}>{selected.label}</p>
+          </motion.div>
         )}
       </div>
-    </div>
+
+      {/* Number buttons */}
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map((score) => {
+          const isSelected = value === score;
+          const scoreStyle = SCORE_LABELS[score];
+
+          return (
+            <motion.button
+              key={score}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => onChange(score)}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all duration-200 ${
+                isSelected
+                  ? `${scoreStyle.border} ${scoreStyle.bg} shadow-md`
+                  : "border-surface-border bg-dark-900 hover:border-dark-400"
+              }`}
+            >
+              {/* Number */}
+              <span className={`text-lg font-bold ${isSelected ? scoreStyle.color : "text-dark-300"}`}>
+                {score}
+              </span>
+              {/* Label */}
+              <span className={`text-xs font-medium leading-tight text-center ${isSelected ? scoreStyle.color : "text-dark-500"}`}>
+                {scoreStyle.label}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </motion.div>
   );
 }
 
@@ -79,12 +126,12 @@ export default function StepRating({
   onNext,
   onBack,
 }: Props) {
-  const criteria =
-    category === "TEAM_LEADER" ? LEADER_CRITERIA : PRODUCTION_CRITERIA;
+  const isLeader =
+    typeof category === "string" && category === "TEAM_LEADER";
+  const criteria = isLeader ? LEADER_CRITERIA : PRODUCTION_CRITERIA;
 
-  const allRated = criteria.every(
-    (c) => ratings[c.key] && ratings[c.key] >= 1
-  );
+  const allRated = criteria.every((c) => ratings[c.key] && ratings[c.key] >= 1);
+  const ratedCount = criteria.filter((c) => ratings[c.key] && ratings[c.key] >= 1).length;
   const avgRating = computeAvgRating(ratings);
 
   const handleRatingChange = (key: string, score: number) => {
@@ -93,67 +140,70 @@ export default function StepRating({
 
   return (
     <CardWrapper>
+      {/* Header */}
       <div className="mb-6">
         <h2 className="font-display text-2xl font-bold text-dark-50">
           Rate Performance
         </h2>
         <p className="text-dark-400 mt-1 text-sm">
           Rate{" "}
-          <span className="text-gold-400 font-medium">{candidate.name}</span>{" "}
-          across each criterion on a scale of 1–5.
+          <span className="text-gold-400 font-semibold">{candidate.name}</span>{" "}
+          across each criterion below.
         </p>
       </div>
 
-      {/* Average score preview */}
-      {avgRating > 0 && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="mb-6 p-4 bg-gold-500/10 border border-gold-500/30 rounded-xl flex items-center gap-4"
-        >
-          <div className="text-3xl font-display font-bold text-gold-400">
-            {avgRating.toFixed(1)}
-          </div>
-          <div>
-            <p className="text-sm text-dark-200 font-medium">Current Average</p>
-            <div className="flex gap-0.5 mt-1">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <span
-                  key={s}
-                  className={
-                    s <= Math.round(avgRating)
-                      ? "text-gold-400 text-sm"
-                      : "text-dark-600 text-sm"
-                  }
-                >
-                  ★
-                </span>
-              ))}
-            </div>
-          </div>
-          <p className="ml-auto text-xs text-dark-400">
-            {criteria.filter((c) => ratings[c.key]).length}/{criteria.length}{" "}
-            criteria rated
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-dark-400">
+            {ratedCount} of {criteria.length} criteria rated
           </p>
-        </motion.div>
-      )}
-
-      {/* Criteria */}
-      <div className="space-y-5">
-        {criteria.map((criterion, i) => (
+          {avgRating > 0 && (
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-dark-400">Average:</p>
+              <span className={`text-sm font-bold font-mono ${
+                avgRating >= 4.5 ? "text-green-400" :
+                avgRating >= 3.5 ? "text-blue-400" :
+                avgRating >= 2.5 ? "text-yellow-400" :
+                avgRating >= 1.5 ? "text-orange-400" : "text-red-400"
+              }`}>
+                {avgRating.toFixed(1)}/5.0
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="h-2 bg-surface-border rounded-full overflow-hidden">
           <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${(ratedCount / criteria.length) * 100}%` }}
+            transition={{ duration: 0.4 }}
+            className="h-full bg-gold-gradient rounded-full"
+          />
+        </div>
+      </div>
+
+      {/* Score legend */}
+      <div className="flex gap-2 flex-wrap mb-6 p-3 bg-surface-card rounded-xl border border-surface-border">
+        {Object.entries(SCORE_LABELS).map(([score, style]) => (
+          <div key={score} className="flex items-center gap-1.5">
+            <span className={`w-5 h-5 rounded flex items-center justify-center text-xs font-bold border ${style.border} ${style.bg} ${style.color}`}>
+              {score}
+            </span>
+            <span className="text-xs text-dark-400">{style.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Criterion cards */}
+      <div className="space-y-4">
+        {criteria.map((criterion, i) => (
+          <CriterionCard
             key={criterion.key}
-            initial={{ opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.07 }}
-            className="p-4 bg-surface-card rounded-xl border border-surface-border"
-          >
-            <StarRating
-              criterion={criterion}
-              value={ratings[criterion.key] ?? 0}
-              onChange={(score) => handleRatingChange(criterion.key, score)}
-            />
-          </motion.div>
+            criterion={criterion}
+            value={ratings[criterion.key] ?? 0}
+            index={i}
+            onChange={(score) => handleRatingChange(criterion.key, score)}
+          />
         ))}
       </div>
 
@@ -161,7 +211,7 @@ export default function StepRating({
       <div className="mt-6">
         <label className="block text-sm font-medium text-dark-200 mb-2">
           Why are you voting for this employee?{" "}
-          <span className="text-dark-500 font-normal">(optional)</span>
+          <span className="text-dark-500 font-normal text-xs">(optional)</span>
         </label>
         <textarea
           className="input-field resize-none"
@@ -171,15 +221,18 @@ export default function StepRating({
           onChange={(e) => onCommentChange(e.target.value)}
           maxLength={500}
         />
-        <p className="text-xs text-dark-500 mt-1 text-right">
-          {comment.length}/500
-        </p>
+        <p className="text-xs text-dark-500 mt-1 text-right">{comment.length}/500</p>
       </div>
 
-      {!allRated && (
-        <p className="mt-3 text-xs text-dark-400">
+      {/* Not all rated warning */}
+      {!allRated && ratedCount > 0 && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-3 text-xs text-gold-400"
+        >
           ⚠️ Please rate all {criteria.length} criteria to continue.
-        </p>
+        </motion.p>
       )}
 
       {/* Navigation */}
