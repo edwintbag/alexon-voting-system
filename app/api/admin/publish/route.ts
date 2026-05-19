@@ -1,7 +1,5 @@
-// app/api/admin/publish/route.ts
-// POST — publish winners for a month
-// GET  — get published winners (public)
-
+export const dynamic = "force-dynamic";
+// app/api/admin/publish/route.ts — fixed: strictly 1 winner per category
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAdminFromRequest, logAudit } from "@/lib/auth";
@@ -19,14 +17,18 @@ export async function GET(req: NextRequest) {
       orderBy: [{ year: "desc" }, { month: "desc" }, { finalScore: "desc" }],
     });
 
-    // Group by month/year
+    // Group by month/year — strictly 1 winner per category
     const grouped: Record<string, any> = {};
     for (const w of winners) {
       const key = `${w.year}-${String(w.month).padStart(2, "0")}`;
       if (!grouped[key]) {
         grouped[key] = { month: w.month, year: w.year, publishedAt: w.publishedAt, winners: [] };
       }
-      grouped[key].winners.push(w);
+      // Only add if this category not already added (safety check)
+      const alreadyHas = grouped[key].winners.find((x: any) => x.categoryId === w.categoryId);
+      if (!alreadyHas) {
+        grouped[key].winners.push(w);
+      }
     }
 
     const periods = Object.values(grouped).sort((a: any, b: any) =>
@@ -50,85 +52,115 @@ export async function POST(req: NextRequest) {
   if (!month || !year) return NextResponse.json({ error: "Month and year are required" }, { status: 400 });
 
   try {
-    // Get all active categories
-    const categories = await prisma.category.findMany({ where: { isActive: true } });
+    // ── Step 1: Delete ALL existing published winners for this month ──
+    // This ensures a clean slate — exactly 1 winner per category
+    await prisma.publishedWinner.deleteMany({ where: { month, year } });
 
+    const categories = await prisma.category.findMany({ where: { isActive: true } });
     const published = [];
 
     for (const cat of categories) {
-      // Get votes for this category and period
+      // Get all votes for this category and period
       const votes = await prisma.vote.findMany({
         where: { categoryId: cat.id, voteMonth: month, voteYear: year },
         include: { candidate: true },
       });
 
-      if (votes.length === 0) continue;
+      if (votes.length === 0) continue; // Skip categories with no votes
 
       // Aggregate per candidate
-      const candidateMap = new Map<string, { name: string; dept: string; role: string | null; voteCount: number; ratingSum: number }>();
+      const candidateMap = new Map<string, {
+        name: string; dept: string; role: string | null;
+        voteCount: number; totalScoreSum: number;
+      }>();
+
       for (const vote of votes) {
         const ex = candidateMap.get(vote.candidateId);
-        if (ex) { ex.voteCount += 1; ex.ratingSum += vote.averageRating; }
-        else candidateMap.set(vote.candidateId, { name: vote.candidate.name, dept: vote.candidate.department, role: vote.candidate.role, voteCount: 1, ratingSum: vote.averageRating });
-      }
-
-      const maxVotes = Math.max(...Array.from(candidateMap.values()).map(v => v.voteCount), 1);
-
-      // Find winner (highest final score)
-      let winner = null;
-      let winnerScore = -1;
-      let winnerId = "";
-
-      for (const [id, data] of candidateMap.entries()) {
-        const avgRating = data.ratingSum / data.voteCount;
-        const finalScore = computeFinalScore(avgRating, data.voteCount, maxVotes);
-        if (finalScore > winnerScore) {
-          winnerScore = finalScore;
-          winner = { ...data, avgRating, finalScore };
-          winnerId = id;
+        if (ex) {
+          ex.voteCount += 1;
+          ex.totalScoreSum += vote.averageRating; // stored as total score
+        } else {
+          candidateMap.set(vote.candidateId, {
+            name: vote.candidate.name,
+            dept: vote.candidate.department,
+            role: vote.candidate.role,
+            voteCount: 1,
+            totalScoreSum: vote.averageRating,
+          });
         }
       }
 
-      if (!winner) continue;
+      // Find max votes for normalization
+      const maxVotes = Math.max(...Array.from(candidateMap.values()).map(v => v.voteCount), 1);
 
-      // Upsert published winner
-      const pw = await prisma.publishedWinner.upsert({
-        where: { categoryId_month_year: { categoryId: cat.id, month, year } },
-        create: {
-          employeeId: winnerId,
-          employeeName: winner.name,
+      // ── Find THE ONE winner (highest final score only) ──
+      let topWinnerId = "";
+      let topWinner = null;
+      let topScore = -1;
+
+      for (const [id, data] of candidateMap.entries()) {
+        const avgTotal = data.totalScoreSum / data.voteCount;
+        const finalScore = computeFinalScore(avgTotal, data.voteCount, maxVotes);
+        if (finalScore > topScore) {
+          topScore = finalScore;
+          topWinner = { ...data, avgTotal, finalScore };
+          topWinnerId = id;
+        }
+      }
+
+      if (!topWinner) continue;
+
+      // ── Create exactly ONE winner record for this category ──
+      const pw = await prisma.publishedWinner.create({
+        data: {
+          employeeId: topWinnerId,
+          employeeName: topWinner.name,
           categoryId: cat.id,
           categoryName: cat.name,
-          department: winner.dept,
-          role: winner.role,
+          department: topWinner.dept,
+          role: topWinner.role,
           month,
           year,
-          finalScore: winnerScore,
-          averageRating: Math.round(winner.avgRating * 100) / 100,
-          totalVotes: winner.voteCount,
+          finalScore: topScore,
+          averageRating: Math.round(topWinner.avgTotal * 100) / 100,
+          totalVotes: topWinner.voteCount,
           message: message || null,
           publishedById: admin.id,
-        },
-        update: {
-          employeeId: winnerId,
-          employeeName: winner.name,
-          finalScore: winnerScore,
-          averageRating: Math.round(winner.avgRating * 100) / 100,
-          totalVotes: winner.voteCount,
-          message: message || null,
-          publishedById: admin.id,
-          publishedAt: new Date(),
         },
       });
 
       published.push(pw);
     }
 
-    await logAudit(admin.id, "PUBLISH_WINNERS", { month, year, count: published.length });
+    await logAudit(admin.id, "PUBLISH_WINNERS", {
+      month, year,
+      categoriesPublished: published.length,
+      winnersCount: published.length,
+    });
 
-    return NextResponse.json({ success: true, published: published.length, winners: published });
-  } catch (error) {
+    return NextResponse.json({
+      success: true,
+      published: published.length,
+      message: `${published.length} winner${published.length !== 1 ? "s" : ""} published — one per category.`,
+      winners: published,
+    });
+  } catch (error: any) {
     console.error("[POST /api/admin/publish]", error);
-    return NextResponse.json({ error: "Failed to publish winners" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to publish winners: " + error.message }, { status: 500 });
   }
+}
+
+// DELETE — unpublish a specific month (Super Admin only)
+export async function DELETE(req: NextRequest) {
+  const admin = await getAdminFromRequest(req);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (admin.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { month, year } = await req.json();
+  if (!month || !year) return NextResponse.json({ error: "Month and year required" }, { status: 400 });
+
+  const deleted = await prisma.publishedWinner.deleteMany({ where: { month, year } });
+  await logAudit(admin.id, "UNPUBLISH_WINNERS", { month, year, count: deleted.count });
+
+  return NextResponse.json({ success: true, removed: deleted.count });
 }
