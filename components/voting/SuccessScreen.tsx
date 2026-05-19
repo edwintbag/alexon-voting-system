@@ -1,4 +1,4 @@
-// components/voting/SuccessScreen.tsx — v7 guided flow
+// components/voting/SuccessScreen.tsx — clean, no drivers references
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,17 +10,10 @@ interface Props {
   categoryName: string;
   voterEmployeeId: string;
   onRestart: () => void;
-  onNextCategory: (categoryId: string, categoryName: string) => void;
-  isTeam?: boolean;
-  teamMembers?: string[];
+  onNextCategory: (categoryId?: string, categoryName?: string) => void;
 }
 
-interface ProgressItem {
-  id: string;
-  name: string;
-  hasVoted: boolean;
-}
-
+interface ProgressItem { id: string; name: string; hasVoted: boolean; }
 interface Progress {
   progress: ProgressItem[];
   totalCategories: number;
@@ -29,31 +22,14 @@ interface Progress {
   nextCategory: { id: string; name: string } | null;
 }
 
-export default function SuccessScreen({ candidateName, categoryName, voterEmployeeId, onRestart, onNextCategory, isTeam, teamMembers }: Props) {
+export default function SuccessScreen({ candidateName, categoryName, voterEmployeeId, onRestart, onNextCategory }: Props) {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!voterEmployeeId) { setLoading(false); return; }
-    Promise.all([
-      fetch(`/api/votes/progress?voterEmployeeId=${voterEmployeeId}`).then(r => r.json()),
-      fetch(`/api/team-votes?voterEmployeeId=${voterEmployeeId}`).then(r => r.json()),
-    ]).then(([prog, driver]) => {
-      const driverVoted = driver.hasVoted ?? false;
-      setProgress({
-        ...prog,
-        totalCategories: (prog.totalCategories ?? 0) + 1,
-        votedCount: (prog.votedCount ?? 0) + (driverVoted ? 1 : 0),
-        allDone: prog.allDone && driverVoted,
-        progress: [
-          ...(prog.progress ?? []),
-          { id: "drivers-and-operators", name: "Drivers & Operators", hasVoted: driverVoted }
-        ],
-        nextCategory: prog.allDone && !driverVoted
-          ? { id: "drivers-and-operators", name: "Drivers & Operators" }
-          : prog.nextCategory,
-      });
-    }).finally(() => setLoading(false));
+    fetch(`/api/votes/progress?voterEmployeeId=${voterEmployeeId}`)
+      .then(r => r.json()).then(setProgress).finally(() => setLoading(false));
   }, [voterEmployeeId]);
 
   const allDone = progress?.allDone ?? false;
@@ -75,11 +51,9 @@ export default function SuccessScreen({ candidateName, categoryName, voterEmploy
         />
       ))}
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.85, y: 30 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="glass-card p-8 max-w-lg w-full text-center relative z-10 shadow-gold-lg"
-      >
+      <motion.div initial={{ opacity: 0, scale: 0.85, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="glass-card p-8 max-w-lg w-full text-center relative z-10 shadow-gold-lg">
+
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
           transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
           className="w-16 h-16 mx-auto mb-4 bg-gold-gradient rounded-full flex items-center justify-center shadow-gold">
@@ -90,13 +64,6 @@ export default function SuccessScreen({ candidateName, categoryName, voterEmploy
         <p className="text-dark-400 text-sm">
           You voted for <span className="text-gold-400 font-semibold">{candidateName}</span>
         </p>
-        {isTeam && teamMembers && teamMembers.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-1 mt-1">
-            {teamMembers.map((name, i) => (
-              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-400">{name}</span>
-            ))}
-          </div>
-        )}
         <p className="text-dark-500 text-xs mt-0.5">in {categoryName}</p>
 
         {/* Progress tracker */}
@@ -110,22 +77,15 @@ export default function SuccessScreen({ candidateName, categoryName, voterEmploy
                 {votedCount}/{totalCategories}
               </span>
             </div>
-
-            {/* Progress bar */}
             <div className="h-2 bg-surface-border rounded-full overflow-hidden mb-3">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${(votedCount / totalCategories) * 100}%` }}
+              <motion.div initial={{ width: 0 }}
+                animate={{ width: `${totalCategories > 0 ? (votedCount / totalCategories) * 100 : 0}%` }}
                 transition={{ delay: 0.6, duration: 0.6 }}
-                className="h-full bg-gold-gradient rounded-full"
-              />
+                className="h-full bg-gold-gradient rounded-full" />
             </div>
-
-            {/* Category checklist */}
             <div className="space-y-1.5">
-              {progress.progress.map((cat) => (
-                <div key={cat.id}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${cat.hasVoted ? "bg-green-500/10 text-green-400" : "text-dark-500"}`}>
+              {progress.progress.map(cat => (
+                <div key={cat.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${cat.hasVoted ? "bg-green-500/10 text-green-400" : "text-dark-500"}`}>
                   <span className="text-base">{cat.hasVoted ? "✅" : "⭕"}</span>
                   <span>{cat.name}</span>
                 </div>
@@ -136,19 +96,15 @@ export default function SuccessScreen({ candidateName, categoryName, voterEmploy
 
         <div className="gold-line my-5" />
 
-        {/* Action buttons */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }} className="flex flex-col gap-3">
-
           {allDone ? (
             <>
               <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
                 <p className="text-green-400 font-semibold text-sm">🎉 You've voted in all {totalCategories} categories!</p>
                 <p className="text-dark-400 text-xs mt-0.5">Thank you for participating this month.</p>
               </div>
-              <Link href="/winners">
-                <button className="btn-gold w-full">View Winners Page →</button>
-              </Link>
+              <Link href="/winners"><button className="btn-gold w-full">View Winners Page →</button></Link>
               <Link href="/"><button className="btn-outline w-full">Back to Home</button></Link>
             </>
           ) : nextCategory ? (
