@@ -7,7 +7,7 @@ import { VoteFormState, VoterInfo, CategoryRecord, EmployeeRecord, RatingMap, DR
 import StepIndicator from "@/components/voting/StepIndicator";
 import StepVoterInfo from "@/components/voting/StepVoterInfo";
 import StepCategory from "@/components/voting/StepCategory";
-import { DRIVERS_CATEGORY_ID } from "@/components/voting/StepCategory";
+import { DRIVERS_CATEGORY_ID } from "@/lib/constants";
 import StepEmployee from "@/components/voting/StepEmployee";
 import StepRating from "@/components/voting/StepRating";
 import StepSubmit from "@/components/voting/StepSubmit";

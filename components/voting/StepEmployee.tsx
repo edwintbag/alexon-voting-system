@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CategoryRecord, EmployeeRecord } from "@/types";
 import CardWrapper from "@/components/ui/CardWrapper";
-import { DRIVERS_CATEGORY_ID } from "@/components/voting/StepCategory";
+import { DRIVERS_CATEGORY_ID } from "@/lib/constants";
 
 interface TeamMember {
   role: string;
