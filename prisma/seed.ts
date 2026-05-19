@@ -275,3 +275,72 @@ async function seedSchedule() {
   });
   console.log("✅ Default voting schedule created (25th-30th, 8AM-5PM)");
 }
+
+// Seed vehicle & plant teams
+async function seedTeams() {
+  await prisma.teamRating.deleteMany();
+  await prisma.teamVote.deleteMany();
+  await prisma.vehicleTeamMember.deleteMany();
+  await prisma.vehicleTeam.deleteMany();
+
+  const teams = [
+    { regNumber: "KDV 118X", vehicleType: "Water Bowser", description: "Omiya & Calvin", order: 1,
+      members: [
+        { name: "Charles Ouma Omiya", role: "Driver" },
+        { name: "Calvin Oduor Juma", role: "Co-Driver" },
+      ]
+    },
+    { regNumber: "KDW 288H", vehicleType: "MGUU 10", description: "Ameda & Raphael", order: 2,
+      members: [
+        { name: "Charles Ameda", role: "Driver" },
+        { name: "Raphael Muganda Musawa", role: "Co-Driver" },
+      ]
+    },
+    { regNumber: "KDV 946M", vehicleType: "MGUU 6", description: "Zakaria", order: 3,
+      members: [{ name: "Zachary Jonyo", role: "Driver" }]
+    },
+    { regNumber: "KDX 974Q", vehicleType: "Pickup (New)", description: "Stephene", order: 4,
+      members: [{ name: "Stephen Ochieng Oduor", role: "Driver" }]
+    },
+    { regNumber: "KHMA 821X", vehicleType: "Backhoe 1", description: "Sowed & Pauline", order: 5,
+      members: [
+        { name: "Sowed Oduol Mila", role: "Operator" },
+        { name: "Pauline Linder Awuor", role: "Assistant" },
+      ]
+    },
+    { regNumber: "C-3689", vehicleType: "Backhoe 2", description: "Bonface & Joseph", order: 6,
+      members: [
+        { name: "Bonface Omondi", role: "Operator" },
+        { name: "Joseph Odera", role: "Assistant" },
+      ]
+    },
+    { regNumber: "C-8639", vehicleType: "Excavator", description: "Joash", order: 7,
+      members: [{ name: "Joash Olweje", role: "Operator" }]
+    },
+  ];
+
+  const allEmployees = await prisma.employee.findMany();
+  const empMap = new Map(allEmployees.map(e => [e.name, e.id]));
+
+  for (const team of teams) {
+    const created = await prisma.vehicleTeam.create({
+      data: {
+        name: `${team.regNumber} — ${team.vehicleType}`,
+        regNumber: team.regNumber,
+        vehicleType: team.vehicleType,
+        description: team.description,
+        order: team.order,
+      }
+    });
+    for (const member of team.members) {
+      const empId = empMap.get(member.name);
+      if (!empId) { console.warn(`  ⚠️ Not found: ${member.name}`); continue; }
+      await prisma.vehicleTeamMember.create({
+        data: { teamId: created.id, employeeId: empId, role: member.role }
+      });
+    }
+    console.log(`✅ Team: ${created.name} (${team.members.length} members)`);
+  }
+}
+
+seedTeams().catch(console.error).finally(() => prisma.$disconnect());

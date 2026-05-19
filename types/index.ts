@@ -83,3 +83,26 @@ export interface VoteSubmitPayload {
   ratings: RatingMap;
   comment?: string;
 }
+
+// ── Driver & Operator criteria ───────────────────────
+
+export const DRIVER_CRITERIA: CriterionDef[] = [
+  { key: "vehicleMaintenance", label: "Vehicle Maintenance", description: "Keeps vehicle clean, fueled and well maintained" },
+  { key: "punctuality", label: "Punctuality & Availability", description: "Always on time and available when needed" },
+  { key: "safeDriving", label: "Safe Driving / Operation", description: "Follows road/machine safety rules consistently" },
+  { key: "teamwork", label: "Teamwork", description: "Works well with co-driver or assistant" },
+  { key: "reliability", label: "Reliability", description: "Dependable, consistent and responsible" },
+];
+
+// ── Team record ──────────────────────────────────────
+export interface VehicleTeamRecord {
+  id: string;
+  name: string;
+  regNumber: string;
+  vehicleType: string;
+  description: string | null;
+  members: {
+    role: string;
+    employee: { id: string; name: string; staffNumber: string; };
+  }[];
+}

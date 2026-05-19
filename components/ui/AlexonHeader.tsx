@@ -38,6 +38,9 @@ export default function AlexonHeader() {
           <Link href="/vote" className="text-sm text-dark-300 hover:text-gold-400 transition-colors px-2 py-1">
             Vote
           </Link>
+          <Link href="/drivers-vote" className="text-sm text-dark-300 hover:text-gold-400 transition-colors px-2 py-1 hidden sm:block">
+            🚗 Drivers
+          </Link>
           <Link href="/winners" className="text-sm text-dark-300 hover:text-gold-400 transition-colors px-2 py-1">
             Winners
           </Link>

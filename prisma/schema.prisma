@@ -41,9 +41,11 @@ model Employee {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  categoryMembers CategoryMember[]
-  votesAsVoter    Vote[]           @relation("VoterEmployee")
-  votesAsCandidate Vote[]          @relation("CandidateEmployee")
+  categoryMembers   CategoryMember[]
+  votesAsVoter      Vote[]              @relation("VoterEmployee")
+  votesAsCandidate  Vote[]              @relation("CandidateEmployee")
+  vehicleTeams      VehicleTeamMember[]
+  teamVotesAsVoter  TeamVote[]          @relation("TeamVoterEmployee")
 
   @@index([department])
   @@map("employees")
@@ -272,4 +274,66 @@ model CommentModeration {
   createdAt    DateTime @default(now())
 
   @@map("comment_moderation")
+}
+
+// ─── VEHICLE/PLANT TEAMS ──────────────────────────────
+
+model VehicleTeam {
+  id          String   @id @default(cuid())
+  name        String   @unique  // e.g. "KDW 288H — MGUU 10"
+  regNumber   String           // e.g. "KDW 288H"
+  vehicleType String           // e.g. "MGUU 10", "Backhoe 1"
+  description String?          // e.g. "Ameda & Raphael"
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     VehicleTeamMember[]
+  votes       TeamVote[]
+
+  @@map("vehicle_teams")
+}
+
+model VehicleTeamMember {
+  id         String   @id @default(cuid())
+  teamId     String
+  employeeId String
+  role       String   // "Driver", "Co-Driver", "Operator", "Assistant"
+  createdAt  DateTime @default(now())
+
+  team     VehicleTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employee Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, employeeId])
+  @@map("vehicle_team_members")
+}
+
+model TeamVote {
+  id              String   @id @default(cuid())
+  voterEmployeeId String
+  teamId          String
+  voteMonth       Int
+  voteYear        Int
+  totalScore      Float
+  comment         String?
+  createdAt       DateTime @default(now())
+
+  voterEmployee Employee    @relation("TeamVoterEmployee", fields: [voterEmployeeId], references: [id])
+  team          VehicleTeam @relation(fields: [teamId], references: [id])
+  ratings       TeamRating[]
+
+  @@unique([voterEmployeeId, voteMonth, voteYear]) // one vote per person per month in this category
+  @@index([teamId, voteMonth, voteYear])
+  @@map("team_votes")
+}
+
+model TeamRating {
+  id        String @id @default(cuid())
+  voteId    String
+  vote      TeamVote @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  criterion String
+  score     Int
+
+  @@map("team_ratings")
 }
