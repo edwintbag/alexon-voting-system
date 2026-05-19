@@ -11,6 +11,7 @@ import {
   LEADER_CRITERIA,
 } from "@/types";
 import { computeTotalScore, MAX_TOTAL_SCORE } from "@/lib/scoring";
+import { DRIVER_CRITERIA } from "@/types";
 import CardWrapper from "@/components/ui/CardWrapper";
 
 interface Props {
@@ -92,7 +93,8 @@ function CriterionCard({ criterion, value, index, onChange }: {
 
 export default function StepRating({ category, candidate, ratings, comment, onRatingsChange, onCommentChange, onNext, onBack }: Props) {
   const isLeader = typeof category === "string" && category === "TEAM_LEADER";
-  const criteria = isLeader ? LEADER_CRITERIA : PRODUCTION_CRITERIA;
+  const isDriver = typeof category === "string" && category === "DRIVER";
+  const criteria = isDriver ? DRIVER_CRITERIA : isLeader ? LEADER_CRITERIA : PRODUCTION_CRITERIA;
 
   const allRated = criteria.every((c) => ratings[c.key] && ratings[c.key] >= 1);
   const ratedCount = criteria.filter((c) => ratings[c.key] && ratings[c.key] >= 1).length;

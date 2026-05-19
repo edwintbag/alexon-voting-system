@@ -11,6 +11,8 @@ interface Props {
   voterEmployeeId: string;
   onRestart: () => void;
   onNextCategory: (categoryId: string, categoryName: string) => void;
+  isTeam?: boolean;
+  teamMembers?: string[];
 }
 
 interface ProgressItem {
@@ -27,14 +29,31 @@ interface Progress {
   nextCategory: { id: string; name: string } | null;
 }
 
-export default function SuccessScreen({ candidateName, categoryName, voterEmployeeId, onRestart, onNextCategory }: Props) {
+export default function SuccessScreen({ candidateName, categoryName, voterEmployeeId, onRestart, onNextCategory, isTeam, teamMembers }: Props) {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!voterEmployeeId) { setLoading(false); return; }
-    fetch(`/api/votes/progress?voterEmployeeId=${voterEmployeeId}`)
-      .then(r => r.json()).then(setProgress).finally(() => setLoading(false));
+    Promise.all([
+      fetch(`/api/votes/progress?voterEmployeeId=${voterEmployeeId}`).then(r => r.json()),
+      fetch(`/api/team-votes?voterEmployeeId=${voterEmployeeId}`).then(r => r.json()),
+    ]).then(([prog, driver]) => {
+      const driverVoted = driver.hasVoted ?? false;
+      setProgress({
+        ...prog,
+        totalCategories: (prog.totalCategories ?? 0) + 1,
+        votedCount: (prog.votedCount ?? 0) + (driverVoted ? 1 : 0),
+        allDone: prog.allDone && driverVoted,
+        progress: [
+          ...(prog.progress ?? []),
+          { id: "drivers-and-operators", name: "Drivers & Operators", hasVoted: driverVoted }
+        ],
+        nextCategory: prog.allDone && !driverVoted
+          ? { id: "drivers-and-operators", name: "Drivers & Operators" }
+          : prog.nextCategory,
+      });
+    }).finally(() => setLoading(false));
   }, [voterEmployeeId]);
 
   const allDone = progress?.allDone ?? false;
@@ -71,6 +90,13 @@ export default function SuccessScreen({ candidateName, categoryName, voterEmploy
         <p className="text-dark-400 text-sm">
           You voted for <span className="text-gold-400 font-semibold">{candidateName}</span>
         </p>
+        {isTeam && teamMembers && teamMembers.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-1 mt-1">
+            {teamMembers.map((name, i) => (
+              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-400">{name}</span>
+            ))}
+          </div>
+        )}
         <p className="text-dark-500 text-xs mt-0.5">in {categoryName}</p>
 
         {/* Progress tracker */}
