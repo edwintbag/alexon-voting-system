@@ -1,4 +1,5 @@
-// app/api/votes/progress/route.ts
+export const dynamic = "force-dynamic";
+// app/api/votes/progress/route.ts — only count categories with members
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentVotePeriod } from "@/lib/scoring";
@@ -12,12 +13,31 @@ export async function GET(req: NextRequest) {
   const { month, year } = getCurrentVotePeriod();
 
   try {
+    // Only count categories that are active AND have at least one eligible member
     const categories = await prisma.category.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        members: {
+          some: {
+            employee: { isActive: true, isExcluded: false }
+          }
+        }
+      },
       orderBy: { order: "asc" },
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: {
+          select: {
+            members: {
+              where: {
+                employee: { isActive: true, isExcluded: false }
+              }
+            }
+          }
+        }
+      },
     });
 
+    // Get votes already cast this month
     const votes = await prisma.vote.findMany({
       where: { voterEmployeeId, voteMonth: month, voteYear: year },
       select: { categoryId: true },
@@ -33,7 +53,7 @@ export async function GET(req: NextRequest) {
     }));
 
     const totalCategories = categories.length;
-    const votedCount = votes.length;
+    const votedCount = progress.filter(p => p.hasVoted).length;
     const allDone = votedCount >= totalCategories;
     const nextCategory = progress.find(p => !p.hasVoted) ?? null;
 
