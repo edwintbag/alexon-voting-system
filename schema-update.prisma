@@ -1,0 +1,18 @@
+// ─── VOTING SCHEDULE (UPDATED) ───────────────────────
+// Replace the existing VotingSchedule model with this one
+
+model VotingSchedule {
+  id              String    @id @default(cuid())
+  label           String    // e.g. "May 2026 Voting"
+  startDateTime   DateTime  // exact start: 2026-05-25T18:00:00
+  endDateTime     DateTime  // exact end:   2026-05-28T18:00:00
+  isManualOpen    Boolean   @default(false) // force open regardless of schedule
+  isManualClosed  Boolean   @default(false) // force closed regardless of schedule
+  overrideReason  String?   // reason for manual override
+  isActive        Boolean   @default(true)
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("voting_schedules")
+}
