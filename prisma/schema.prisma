@@ -198,28 +198,19 @@ model AuditLog {
 // ─── VOTING SCHEDULE ──────────────────────────────────
 
 model VotingSchedule {
-  id            String    @id @default(cuid())
-  
-  // Recurring monthly rule
-  recurringStartDay  Int       // Day of month voting opens (e.g. 25)
-  recurringEndDay    Int       // Day of month voting closes (e.g. 30)
-  recurringStartHour Int       @default(8)   // Hour voting opens (24hr)
-  recurringEndHour   Int       @default(17)  // Hour voting closes (24hr)
-  
-  // Manual override
-  isManualOverride   Boolean   @default(false)
-  manualIsOpen       Boolean   @default(false) // true = forced open, false = forced closed
-  overrideReason     String?
-  overrideSetAt      DateTime?
-  overrideSetById    String?
-  
-  // Status
-  isActive      Boolean   @default(true)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String   @id @default(cuid())
+  label          String
+  startDateTime  DateTime
+  endDateTime    DateTime
+  isManualOpen   Boolean  @default(false)
+  isManualClosed Boolean  @default(false)
+  overrideReason String?
+  isActive       Boolean  @default(true)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@map("voting_schedule")
+  @@map("voting_schedules")
 }
 
 // ─── PUBLISHED WINNERS ────────────────────────────────
