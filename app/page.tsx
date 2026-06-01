@@ -1,4 +1,4 @@
-// app/page.tsx — Landing page with real Alexon logo
+// app/page.tsx — professional date display
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,6 +6,22 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 
 const LOGO_URL = "https://lh3.googleusercontent.com/d/1TuIn-uqVHCU041-lNSFgrnYk17w5Yacb";
+
+function formatDate(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+}
+
+function formatTime(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
 
 function HexPattern() {
   return (
@@ -21,11 +37,21 @@ function HexPattern() {
 }
 
 export default function HomePage() {
-  const [windowInfo, setWindowInfo] = useState<{ isOpen: boolean; message: string; start: number; end: number } | null>(null);
+  const [windowInfo, setWindowInfo] = useState<{
+    isOpen: boolean;
+    message: string;
+    schedule?: { startDateTime: string; endDateTime: string } | null;
+  } | null>(null);
 
   useEffect(() => {
-    fetch("/api/voting-status").then(r => r.json()).then(setWindowInfo);
+    fetch("/api/voting-status").then(r => r.json()).then(setWindowInfo).catch(() => {});
   }, []);
+
+  const hasSchedule = !!windowInfo?.schedule;
+  const startDate = hasSchedule ? formatDate(windowInfo!.schedule!.startDateTime) : "";
+  const startTime = hasSchedule ? formatTime(windowInfo!.schedule!.startDateTime) : "";
+  const endDate   = hasSchedule ? formatDate(windowInfo!.schedule!.endDateTime)   : "";
+  const endTime   = hasSchedule ? formatTime(windowInfo!.schedule!.endDateTime)   : "";
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
@@ -34,38 +60,24 @@ export default function HomePage() {
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gold-gradient" />
 
       <div className="relative z-10 max-w-2xl mx-auto px-6 text-center">
-        {/* Real Alexon Logo */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-8"
-        >
+
+        {/* Logo */}
+        <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="mb-8">
           <div className="inline-flex flex-col items-center gap-3">
             <div className="w-32 h-32 rounded-2xl overflow-hidden bg-dark-800 shadow-gold flex items-center justify-center">
-              <img
-                src={LOGO_URL}
-                alt="Alexon Group"
-                className="w-full h-full object-contain p-1"
+              <img src={LOGO_URL} alt="Alexon Group" className="w-full h-full object-contain p-1"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
                   e.currentTarget.parentElement!.innerHTML = '<span class="text-gold-400 font-display font-bold text-4xl">A</span>';
-                }}
-              />
+                }} />
             </div>
-            <span className="font-display text-gold-400 text-2xl font-semibold tracking-wide">
-              Alexon Group Ltd
-            </span>
+            <span className="font-display text-gold-400 text-2xl font-semibold tracking-wide">Alexon Group Ltd</span>
             <p className="text-dark-500 text-xs italic">"Your trusted partner for growth and sustainability"</p>
           </div>
         </motion.div>
 
         {/* Title */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}>
           <h1 className="font-display text-5xl md:text-6xl font-bold text-dark-50 mb-4 leading-tight">
             Employee of the{" "}
             <span className="text-transparent bg-clip-text bg-gold-gradient">Month</span>
@@ -77,30 +89,25 @@ export default function HomePage() {
           </p>
         </motion.div>
 
-        {/* Voting window status */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-8 mb-10"
-        >
+        {/* Status badge */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mt-8 mb-6">
           {windowInfo ? (
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border ${windowInfo.isOpen ? "border-green-500/40 bg-green-500/10 text-green-400" : "border-gold-500/40 bg-gold-500/10 text-gold-400"}`}>
-              <span className={`w-2 h-2 rounded-full ${windowInfo.isOpen ? "bg-green-400 animate-pulse" : "bg-gold-400"}`} />
+            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium border ${
+              windowInfo.isOpen
+                ? "border-green-500/40 bg-green-500/10 text-green-400"
+                : "border-gold-500/40 bg-gold-500/10 text-gold-400"
+            }`}>
+              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${windowInfo.isOpen ? "bg-green-400 animate-pulse" : "bg-gold-400"}`} />
               {windowInfo.message}
             </div>
           ) : (
-            <div className="inline-block skeleton h-8 w-64 rounded-full" />
+            <div className="inline-block skeleton h-10 w-64 rounded-full" />
           )}
         </motion.div>
 
         {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="flex flex-col sm:flex-row gap-4 justify-center"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+          className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
           <Link href="/vote">
             <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="btn-gold text-base px-10 py-4 text-lg">
               Cast Your Vote
@@ -113,33 +120,43 @@ export default function HomePage() {
           </Link>
         </motion.div>
 
-        {/* Voting period info */}
-        {windowInfo && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="mt-6 text-dark-400 text-sm"
-          >
-            Voting opens every month from the{" "}
-            <span className="text-gold-400">{windowInfo.start}th</span> to the{" "}
-            <span className="text-gold-400">{windowInfo.end}th</span>
-          </motion.p>
+        {/* Schedule card — clean professional display */}
+        {hasSchedule && startDate && endDate && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
+            className="mx-auto max-w-sm">
+            <div className="glass-card p-5 border border-gold-500/20">
+              <p className="text-xs font-semibold text-gold-400 uppercase tracking-widest mb-4">
+                Voting Window
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Opens */}
+                <div className="p-3 bg-green-500/5 rounded-xl border border-green-500/20 text-left">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-xs">📅</span>
+                    <p className="text-xs text-green-400 font-semibold uppercase tracking-wider">Opens</p>
+                  </div>
+                  <p className="text-sm font-semibold text-dark-100">{startTime}</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{startDate}</p>
+                </div>
+                {/* Closes */}
+                <div className="p-3 bg-red-500/5 rounded-xl border border-red-500/20 text-left">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-xs">🔒</span>
+                    <p className="text-xs text-red-400 font-semibold uppercase tracking-wider">Closes</p>
+                  </div>
+                  <p className="text-sm font-semibold text-dark-100">{endTime}</p>
+                  <p className="text-xs text-dark-400 mt-0.5">{endDate}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {/* Links */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="mt-8 flex justify-center gap-6"
-        >
-          <Link href="/hall-of-fame" className="text-xs text-dark-500 hover:text-gold-400 transition-colors">
-            🏛️ Hall of Fame
-          </Link>
-          <Link href="/admin" className="text-xs text-dark-500 hover:text-gold-400 transition-colors">
-            🔐 Admin Portal
-          </Link>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+          className="mt-8 flex justify-center gap-6">
+          <Link href="/hall-of-fame" className="text-xs text-dark-500 hover:text-gold-400 transition-colors">🏛️ Hall of Fame</Link>
+          <Link href="/admin" className="text-xs text-dark-500 hover:text-gold-400 transition-colors">🔐 Admin Portal</Link>
         </motion.div>
       </div>
 
