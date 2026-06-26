@@ -40,6 +40,11 @@ model Employee {
   isExcluded  Boolean    @default(false)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  nationalId        String?
+  pinHash           String?
+  pinSetAt          DateTime?
+  failedPinAttempts Int       @default(0)
+  pinLockedUntil    DateTime?
 
   categoryMembers   CategoryMember[]
   votesAsVoter      Vote[]              @relation("VoterEmployee")
