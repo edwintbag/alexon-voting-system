@@ -1,4 +1,4 @@
-// components/voting/StepVoterInfo.tsx — v10 with PIN authentication
+// components/voting/StepVoterInfo.tsx — v10 full National ID + PIN
 "use client";
 
 import { useState } from "react";
@@ -28,7 +28,7 @@ export default function StepVoterInfo({ voterInfo, onChange, onNext }: Props) {
   const [verifying, setVerifying] = useState(false);
 
   // First-time setup
-  const [idLast4, setIdLast4] = useState("");
+  const [nationalId, setNationalId] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [settingUp, setSettingUp] = useState(false);
@@ -86,13 +86,14 @@ export default function StepVoterInfo({ voterInfo, onChange, onNext }: Props) {
 
   // ── First-time: verify National ID ───────────────────
   const handleVerifyId = async () => {
-    if (idLast4.length !== 4) { setError("Please enter exactly 4 digits"); return; }
+    const cleaned = nationalId.trim().replace(/\s+/g, "");
+    if (cleaned.length < 6) { setError("Please enter your full National ID number"); return; }
     setSettingUp(true); setError("");
 
     const res = await fetch("/api/auth/setup-pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "verify", employeeId: selectedEmployee.id, nationalIdLast4: idLast4 }),
+      body: JSON.stringify({ action: "verify", employeeId: selectedEmployee.id, nationalId: cleaned }),
     });
     const data = await res.json();
 
@@ -115,7 +116,12 @@ export default function StepVoterInfo({ voterInfo, onChange, onNext }: Props) {
     const res = await fetch("/api/auth/setup-pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "setPin", employeeId: selectedEmployee.id, nationalIdLast4: idLast4, pin: newPin }),
+      body: JSON.stringify({
+        action: "setPin",
+        employeeId: selectedEmployee.id,
+        nationalId: nationalId.trim().replace(/\s+/g, ""),
+        pin: newPin,
+      }),
     });
     const data = await res.json();
 
@@ -138,7 +144,7 @@ export default function StepVoterInfo({ voterInfo, onChange, onNext }: Props) {
   const reset = () => {
     setStage("name");
     setNameInput(""); setMatches([]); setSelectedEmployee(null);
-    setPin(""); setIdLast4(""); setNewPin(""); setConfirmPin("");
+    setPin(""); setNationalId(""); setNewPin(""); setConfirmPin("");
     setError(""); setSearched(false);
   };
 
@@ -246,19 +252,19 @@ export default function StepVoterInfo({ voterInfo, onChange, onNext }: Props) {
             </div>
 
             <label className="block text-sm font-medium text-dark-200 mb-2">
-              Last 4 digits of your National ID Number
+              Your National ID Number
             </label>
-            <input type="text" inputMode="numeric" maxLength={4}
-              className="input-field text-center text-2xl font-mono tracking-widest mb-3"
-              placeholder="••••"
-              value={idLast4}
-              onChange={(e) => { setIdLast4(e.target.value.replace(/\D/g, "")); setError(""); }}
+            <input type="text" inputMode="numeric"
+              className="input-field text-center text-xl font-mono tracking-wider mb-3"
+              placeholder="e.g. 12345678"
+              value={nationalId}
+              onChange={(e) => { setNationalId(e.target.value.replace(/[^\d]/g, "")); setError(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleVerifyId()} />
 
             {error && <p className="text-red-400 text-sm mb-3">❌ {error}</p>}
 
             <div className="flex gap-3">
-              <button onClick={handleVerifyId} disabled={settingUp || idLast4.length !== 4} className="btn-gold flex-1 disabled:opacity-40">
+              <button onClick={handleVerifyId} disabled={settingUp || nationalId.length < 6} className="btn-gold flex-1 disabled:opacity-40">
                 {settingUp ? "Checking..." : "Continue"}
               </button>
               <button onClick={() => setStage("pin")} className="btn-outline">← Back</button>
