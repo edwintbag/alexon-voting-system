@@ -1,8 +1,7 @@
-// components/admin/SecurityPanel.tsx — manage National IDs + PIN status
+// components/admin/SecurityPanel.tsx — manage full National IDs + PIN status
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 
 interface EmpSecurity {
   id: string;
@@ -10,11 +9,17 @@ interface EmpSecurity {
   staffNumber: string;
   department: string;
   hasNationalId: boolean;
-  nationalIdLast4: string | null;
+  nationalId: string | null;
   hasPinSet: boolean;
   pinSetAt: string | null;
   isLocked: boolean;
   failedAttempts: number;
+}
+
+function maskId(id: string | null) {
+  if (!id) return "";
+  if (id.length <= 4) return "••••";
+  return "••••" + id.slice(-4);
 }
 
 export default function SecurityPanel() {
@@ -38,12 +43,13 @@ export default function SecurityPanel() {
   useEffect(() => { fetchEmployees(); }, []);
 
   const saveNationalId = async (employeeId: string) => {
-    if (!/^\d{4}$/.test(idInput)) { setMessage("❌ Must be exactly 4 digits"); return; }
+    const cleaned = idInput.trim().replace(/\s+/g, "");
+    if (!/^\d{6,10}$/.test(cleaned)) { setMessage("❌ National ID must be 6-10 digits"); return; }
     setSaving(true);
     const res = await fetch("/api/admin/employees/national-id", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ employeeId, nationalIdLast4: idInput }),
+      body: JSON.stringify({ employeeId, nationalId: cleaned }),
     });
     if (res.ok) {
       setMessage("✅ National ID saved");
@@ -94,7 +100,7 @@ export default function SecurityPanel() {
       <div>
         <h2 className="font-display text-xl font-bold text-dark-50">Voter Security</h2>
         <p className="text-dark-400 text-sm mt-1">
-          Manage National ID records and PIN status. Employees use their Name + National ID (last 4 digits) to set up their own PIN.
+          Manage National ID records and PIN status. Employees use their Name + full National ID number to set up their own PIN.
         </p>
       </div>
 
@@ -161,11 +167,11 @@ export default function SecurityPanel() {
                 {/* National ID status/edit */}
                 {editingId === emp.id ? (
                   <div className="flex items-center gap-2">
-                    <input type="text" inputMode="numeric" maxLength={4}
-                      className="input-field !py-1.5 !text-sm w-20 text-center font-mono"
-                      placeholder="1234"
+                    <input type="text" inputMode="numeric"
+                      className="input-field !py-1.5 !text-sm w-32 text-center font-mono"
+                      placeholder="12345678"
                       value={idInput}
-                      onChange={(e) => setIdInput(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => setIdInput(e.target.value.replace(/[^\d]/g, ""))}
                       autoFocus />
                     <button onClick={() => saveNationalId(emp.id)} disabled={saving}
                       className="text-xs px-2 py-1.5 rounded-lg bg-gold-500 text-dark-950 font-medium">Save</button>
@@ -173,9 +179,9 @@ export default function SecurityPanel() {
                       className="text-xs px-2 py-1.5 rounded-lg border border-surface-border text-dark-400">✕</button>
                   </div>
                 ) : (
-                  <button onClick={() => { setEditingId(emp.id); setIdInput(emp.nationalIdLast4 ?? ""); }}
-                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${emp.hasNationalId ? "border-blue-500/30 text-blue-400 hover:bg-blue-500/10" : "border-dark-500/30 text-dark-500 hover:border-gold-500/30 hover:text-gold-400"}`}>
-                    {emp.hasNationalId ? `ID: ••${emp.nationalIdLast4}` : "+ Set ID"}
+                  <button onClick={() => { setEditingId(emp.id); setIdInput(emp.nationalId ?? ""); }}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors font-mono ${emp.hasNationalId ? "border-blue-500/30 text-blue-400 hover:bg-blue-500/10" : "border-dark-500/30 text-dark-500 hover:border-gold-500/30 hover:text-gold-400"}`}>
+                    {emp.hasNationalId ? `ID: ${maskId(emp.nationalId)}` : "+ Set ID"}
                   </button>
                 )}
 
@@ -205,7 +211,7 @@ export default function SecurityPanel() {
         <p className="text-xs text-gold-400 font-semibold mb-2">💡 How Employees Use This</p>
         <ol className="text-xs text-dark-400 space-y-1 list-decimal list-inside">
           <li>Search their name when voting</li>
-          <li>First time: enter last 4 digits of National ID → create their own 6-digit PIN</li>
+          <li>First time: enter their full National ID number → create their own 6-digit PIN</li>
           <li>Every time after: just enter their PIN</li>
           <li>If locked out (5 wrong attempts), wait 30 min or admin resets here</li>
         </ol>
