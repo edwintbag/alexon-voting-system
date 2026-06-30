@@ -1,21 +1,19 @@
 export const dynamic = "force-dynamic";
 // app/api/auth/setup-pin/route.ts
-// Step 1: Verify name + last 4 of National ID
+// Step 1: Verify name + FULL National ID number
 // Step 2: Set a new 6-digit PIN (hashed)
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-// POST with action="verify" — check name + ID match, return employee if so
-// POST with action="setPin" — actually save the new PIN
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, employeeId, nationalIdLast4, pin } = body;
+    const { action, employeeId, nationalId, pin } = body;
 
     // ── STEP 1: Verify identity before allowing PIN creation ──
     if (action === "verify") {
-      if (!employeeId || !nationalIdLast4) {
+      if (!employeeId || !nationalId) {
         return NextResponse.json({ error: "Missing employee or ID number." }, { status: 400 });
       }
 
@@ -27,14 +25,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Employee not found." }, { status: 404 });
       }
 
-      if (!employee.nationalIdLast4) {
+      if (!employee.nationalId) {
         return NextResponse.json({
           error: "Your National ID has not been recorded yet. Please contact HR/ICT to set this up first."
         }, { status: 400 });
       }
 
-      // Compare last 4 digits (trimmed, exact match)
-      if (employee.nationalIdLast4.trim() !== nationalIdLast4.trim()) {
+      // Compare full ID number (trimmed, exact match)
+      const cleanInput = nationalId.trim().replace(/\s+/g, "");
+      const cleanStored = employee.nationalId.trim().replace(/\s+/g, "");
+
+      if (cleanStored !== cleanInput) {
         return NextResponse.json({ error: "ID number does not match our records." }, { status: 401 });
       }
 
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     // ── STEP 2: Actually create the PIN ───────────────────────
     if (action === "setPin") {
-      if (!employeeId || !nationalIdLast4 || !pin) {
+      if (!employeeId || !nationalId || !pin) {
         return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
       }
 
@@ -73,7 +74,10 @@ export async function POST(req: NextRequest) {
       }
 
       // Re-verify ID match (don't trust client state alone)
-      if (!employee.nationalIdLast4 || employee.nationalIdLast4.trim() !== nationalIdLast4.trim()) {
+      const cleanInput = nationalId.trim().replace(/\s+/g, "");
+      const cleanStored = employee.nationalId?.trim().replace(/\s+/g, "") ?? "";
+
+      if (!employee.nationalId || cleanStored !== cleanInput) {
         return NextResponse.json({ error: "Verification expired. Please start again." }, { status: 401 });
       }
 
